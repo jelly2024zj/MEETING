@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>会议信息统计</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        #meetingContent {
+            width: 80%;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>会议信息填写</h1>
+    <form id="meetingForm">
+        <label for="meetingName" required>会议名称：</label>
+        <input type="text" id="meetingName"><br><br>
+        <label for="meetingDate">会议日期：</label>
+        <input type="date" id="meetingDate" required><br><br>
+        <label for="meetingTime">会议时间：</label>
+        <input type="time" id="meetingTime" required><br><br>
+        <label for="attendees">参会人员：</label>
+        <input type="text" id="attendees" required><br><br>
+        <label for="meetingContent">会议内容：</label>
+        <textarea id="meetingContent"></textarea><br><br>
+        <input type="submit" value="提交">
+    </form>
+    <h2>按日期筛选会议信息</h2>
+    <input type="date" id="dateFilter" onchange="filterMeetings()">
+    <h2>会议信息列表</h2>
+    <table id="meetingTable">
+        <thead>
+            <tr>
+                <th>会议名称</th>
+                <th>会议日期</th>
+                <th>会议时间</th>
+                <th>参会人员</th>
+                <th>会议内容</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+    <script>
+        const meetingForm = document.getElementById('meetingForm');
+        const meetingTable = document.getElementById('meetingTable').getElementsByTagName('tbody')[0];
+        const dateFilter = document.getElementById('dateFilter');
+
+        // 从 localStorage 加载会议信息
+        function loadMeetings() {
+            const meetings = JSON.parse(localStorage.getItem('meetings')) || [];
+            meetings.sort((a, b) => {
+                const dateA = new Date(`${a.date}T${a.time}`);
+                const dateB = new Date(`${b.date}T${b.time}`);
+                return dateA - dateB;
+            });
+            meetings.forEach(meeting => {
+                addMeetingToTable(meeting);
+            });
+        }
+
+        // 添加会议到表格
+        function addMeetingToTable(meeting) {
+            const newRow = meetingTable.insertRow();
+            const cell1 = newRow.insertCell(0);
+            const cell2 = newRow.insertCell(1);
+            const cell3 = newRow.insertCell(2);
+            const cell4 = newRow.insertCell(3);
+            const cell5 = newRow.insertCell(4);
+            const cell6 = newRow.insertCell(5);
+
+            cell1.textContent = meeting.name;
+            cell2.textContent = meeting.date;
+            cell3.textContent = meeting.time;
+            cell4.textContent = meeting.attendees;
+            cell5.textContent = meeting.content;
+
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = '删除';
+            deleteButton.addEventListener('click', () => {
+                deleteMeeting(meeting);
+                newRow.remove();
+            });
+
+            const editButton = document.createElement('button');
+            editButton.textContent = '编辑';
+            editButton.addEventListener('click', () => {
+                makeCellEditable(cell1, 'name', meeting);
+                makeCellEditable(cell2, 'date', meeting);
+                makeCellEditable(cell3, 'time', meeting);
+                makeCellEditable(cell4, 'attendees', meeting);
+                makeCellEditable(cell5, 'content', meeting);
+            });
+
+            const saveButton = document.createElement('button');
+            saveButton.textContent = '保存';
+            saveButton.style.display = 'none';
+            saveButton.addEventListener('click', () => {
+                saveMeetingEdits(newRow, meeting);
+                saveButton.style.display = 'none';
+                editButton.style.display = 'inline';
+            });
+
+            cell6.appendChild(deleteButton);
+            cell6.appendChild(editButton);
+            cell6.appendChild(saveButton);
+        }
+
+        function makeCellEditable(cell, field, meeting) {
+            const originalValue = cell.textContent;
+            cell.innerHTML = `<input type="text" value="${originalValue}">`;
+            const input = cell.querySelector('input');
+            input.addEventListener('blur', () => {
+                meeting[field] = input.value;
+                saveMeetingsToStorage();
+            });
+        }
+
+        function saveMeetingEdits(row, meeting) {
+            const cells = row.cells;
+            meeting.name = cells[0].querySelector('input').value;
+            meeting.date = cells[1].querySelector('input').value;
+            meeting.time = cells[2].querySelector('input').value;
+            meeting.attendees = cells[3].querySelector('input').value;
+            meeting.content = cells[4].querySelector('input').value;
+            saveMeetingsToStorage();
+            row.cells[0].textContent = meeting.name;
+            row.cells[1].textContent = meeting.date;
+            row.cells[2].textContent = meeting.time;
+            row.cells[3].textContent = meeting.attendees;
+            row.cells[4].textContent = meeting.content;
+        }
+
+        function saveMeetingsToStorage() {
+            let meetings = JSON.parse(localStorage.getItem('meetings')) || [];
+            localStorage.setItem('meetings', JSON.stringify(meetings));
+        }
+
+        // 删除会议信息
+        function deleteMeeting(meeting) {
+            let meetings = JSON.parse(localStorage.getItem('meetings')) || [];
+            meetings = meetings.filter(m => !(m.name === meeting.name && m.date === meeting.date && m.time === meeting.time));
+            localStorage.setItem('meetings', JSON.stringify(meetings));
+        }
+
+        // 提交表单处理
+        meetingForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const meetingName = document.getElementById('meetingName').value;
+            const meetingDate = document.getElementById('meetingDate').value;
+            const meetingTime = document.getElementById('meetingTime').value;
+            const attendees = document.getElementById('attendees').value;
+            const meetingContent = document.getElementById('meetingContent').value;
+
+            const newMeeting = {
+                name: meetingName,
+                date: meetingDate,
+                time: meetingTime,
+                attendees: attendees,
+                content: meetingContent
+            };
+
+            let meetings = JSON.parse(localStorage.getItem('meetings')) || [];
+            meetings.push(newMeeting);
+            meetings.sort((a, b) => {
+                const dateA = new Date(`${a.date}T${a.time}`);
+                const dateB = new Date(`${b.date}T${b.time}`);
+                return dateA - dateB;
+            });
+            localStorage.setItem('meetings', JSON.stringify(meetings));
+
+            meetingTable.innerHTML = '';
+            meetings.forEach(meeting => {
+                addMeetingToTable(meeting);
+            });
+
+            meetingForm.reset();
+        });
+
+        // 按日期筛选会议
+        function filterMeetings() {
+            const selectedDate = dateFilter.value;
+            const meetings = JSON.parse(localStorage.getItem('meetings')) || [];
+            meetingTable.innerHTML = '';
+            meetings.forEach(meeting => {
+                if (selectedDate === '' || meeting.date === selectedDate) {
+                    addMeetingToTable(meeting);
+                }
+            });
+        }
+
+        // 页面加载时加载会议信息
+        loadMeetings();
+    </script>
+</body>
+
+</html>
+    
