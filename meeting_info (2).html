@@ -65,17 +65,22 @@
         const meetingTable = document.getElementById('meetingTable').getElementsByTagName('tbody')[0];
         const dateFilter = document.getElementById('dateFilter');
 
-        // 从 localStorage 加载会议信息
-        function loadMeetings() {
-            const meetings = JSON.parse(localStorage.getItem('meetings')) || [];
-            meetings.sort((a, b) => {
-                const dateA = new Date(`${a.date}T${a.time}`);
-                const dateB = new Date(`${b.date}T${b.time}`);
-                return dateA - dateB;
-            });
-            meetings.forEach(meeting => {
-                addMeetingToTable(meeting);
-            });
+        // 从服务器加载会议信息
+        async function loadMeetings() {
+            try {
+                const response = await fetch('/meetings');
+                const meetings = await response.json();
+                meetings.sort((a, b) => {
+                    const dateA = new Date(`${a.date}T${a.time}`);
+                    const dateB = new Date(`${b.date}T${b.time}`);
+                    return dateA - dateB;
+                });
+                meetings.forEach(meeting => {
+                    addMeetingToTable(meeting);
+                });
+            } catch (error) {
+                console.error('加载会议信息失败:', error);
+            }
         }
 
         // 添加会议到表格
@@ -96,8 +101,8 @@
 
             const deleteButton = document.createElement('button');
             deleteButton.textContent = '删除';
-            deleteButton.addEventListener('click', () => {
-                deleteMeeting(meeting);
+            deleteButton.addEventListener('click', async () => {
+                await deleteMeeting(meeting);
                 newRow.remove();
             });
 
@@ -114,8 +119,8 @@
             const saveButton = document.createElement('button');
             saveButton.textContent = '保存';
             saveButton.style.display = 'none';
-            saveButton.addEventListener('click', () => {
-                saveMeetingEdits(newRow, meeting);
+            saveButton.addEventListener('click', async () => {
+                await saveMeetingEdits(newRow, meeting);
                 saveButton.style.display = 'none';
                 editButton.style.display = 'inline';
             });
@@ -129,41 +134,57 @@
             const originalValue = cell.textContent;
             cell.innerHTML = `<input type="text" value="${originalValue}">`;
             const input = cell.querySelector('input');
-            input.addEventListener('blur', () => {
+            input.addEventListener('blur', async () => {
                 meeting[field] = input.value;
-                saveMeetingsToStorage();
+                await saveMeetingEdits(meeting);
             });
         }
 
-        function saveMeetingEdits(row, meeting) {
+        async function saveMeetingEdits(row, meeting) {
             const cells = row.cells;
             meeting.name = cells[0].querySelector('input').value;
             meeting.date = cells[1].querySelector('input').value;
             meeting.time = cells[2].querySelector('input').value;
             meeting.attendees = cells[3].querySelector('input').value;
             meeting.content = cells[4].querySelector('input').value;
-            saveMeetingsToStorage();
-            row.cells[0].textContent = meeting.name;
-            row.cells[1].textContent = meeting.date;
-            row.cells[2].textContent = meeting.time;
-            row.cells[3].textContent = meeting.attendees;
-            row.cells[4].textContent = meeting.content;
+            try {
+                const response = await fetch('/meetings', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(meeting)
+                });
+                const data = await response.json();
+                console.log(data.message);
+                row.cells[0].textContent = meeting.name;
+                row.cells[1].textContent = meeting.date;
+                row.cells[2].textContent = meeting.time;
+                row.cells[3].textContent = meeting.attendees;
+                row.cells[4].textContent = meeting.content;
+            } catch (error) {
+                console.error('保存会议信息失败:', error);
+            }
         }
 
-        function saveMeetingsToStorage() {
-            let meetings = JSON.parse(localStorage.getItem('meetings')) || [];
-            localStorage.setItem('meetings', JSON.stringify(meetings));
-        }
-
-        // 删除会议信息
-        function deleteMeeting(meeting) {
-            let meetings = JSON.parse(localStorage.getItem('meetings')) || [];
-            meetings = meetings.filter(m => !(m.name === meeting.name && m.date === meeting.date && m.time === meeting.time));
-            localStorage.setItem('meetings', JSON.stringify(meetings));
+        async function deleteMeeting(meeting) {
+            try {
+                const response = await fetch('/meetings', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(meeting)
+                });
+                const data = await response.json();
+                console.log(data.message);
+            } catch (error) {
+                console.error('删除会议信息失败:', error);
+            }
         }
 
         // 提交表单处理
-        meetingForm.addEventListener('submit', function (e) {
+        meetingForm.addEventListener('submit', async function (e) {
             e.preventDefault();
             const meetingName = document.getElementById('meetingName').value;
             const meetingDate = document.getElementById('meetingDate').value;
@@ -179,33 +200,39 @@
                 content: meetingContent
             };
 
-            let meetings = JSON.parse(localStorage.getItem('meetings')) || [];
-            meetings.push(newMeeting);
-            meetings.sort((a, b) => {
-                const dateA = new Date(`${a.date}T${a.time}`);
-                const dateB = new Date(`${b.date}T${b.time}`);
-                return dateA - dateB;
-            });
-            localStorage.setItem('meetings', JSON.stringify(meetings));
-
-            meetingTable.innerHTML = '';
-            meetings.forEach(meeting => {
-                addMeetingToTable(meeting);
-            });
-
-            meetingForm.reset();
+            try {
+                const response = await fetch('/meetings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(newMeeting)
+                });
+                const data = await response.json();
+                console.log(data.message);
+                meetingTable.innerHTML = '';
+                await loadMeetings();
+                meetingForm.reset();
+            } catch (error) {
+                console.error('添加会议信息失败:', error);
+            }
         });
 
         // 按日期筛选会议
-        function filterMeetings() {
+        async function filterMeetings() {
             const selectedDate = dateFilter.value;
-            const meetings = JSON.parse(localStorage.getItem('meetings')) || [];
-            meetingTable.innerHTML = '';
-            meetings.forEach(meeting => {
-                if (selectedDate === '' || meeting.date === selectedDate) {
-                    addMeetingToTable(meeting);
-                }
-            });
+            try {
+                const response = await fetch('/meetings');
+                const meetings = await response.json();
+                meetingTable.innerHTML = '';
+                meetings.forEach(meeting => {
+                    if (selectedDate === '' || meeting.date === selectedDate) {
+                        addMeetingToTable(meeting);
+                    }
+                });
+            } catch (error) {
+                console.error('筛选会议信息失败:', error);
+            }
         }
 
         // 页面加载时加载会议信息
@@ -214,4 +241,3 @@
 </body>
 
 </html>
-    
